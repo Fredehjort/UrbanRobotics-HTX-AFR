@@ -18,7 +18,7 @@ AudioOutputI2S *out;
 // BMI088 I2C stuffs
 #define BMI088_ACC_ADDRESS 0x18
 
-#define BUMP_THRESHOLD_G 1.2     // dynamisk acceleration (efter -1g)
+#define BUMP_THRESHOLD_G 1.2
 #define COOLDOWN_MS 2000         // 2 sek mellem bump-lyde
 
 unsigned long lastTriggerTime = 0;
@@ -64,14 +64,14 @@ void setup() {
   out->SetPinout(I2S_BCLK, I2S_LRCLK, I2S_DIN);
   out->SetGain(0.3);
 
-  Serial.println("BMI088 bump detector ready");
+  Serial.println("BMI088 bump ting ready:]");
 }
 
 void loop() {
   unsigned long now = millis();
 
   // Læs acceleration (ny ting jeg har lavet, please sig hvis det er fucket op)
-  int16_t ax_raw = readAccelAxis(0x12); // X_LSB
+  int16_t ax_raw = readAccelAxis(0x12); 
   int16_t ay_raw = readAccelAxis(0x14);
   int16_t az_raw = readAccelAxis(0x16);
 
