@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <math.h>
 
 #include "AudioGeneratorAAC.h"
 #include "AudioFileSourcePROGMEM.h"
@@ -7,34 +8,60 @@
 
 #include "sampleaac.h"
 
-AudioFileSourcePROGMEM *in;
-AudioGeneratorAAC *aac;
-AudioOutputI2S *out;
+
+/* ========== AUDIO ========== */
+
+AudioFileSourcePROGMEM *in = nullptr;
+AudioGeneratorAAC *aac = nullptr;
+AudioOutputI2S *out = nullptr;
 
 #define I2S_BCLK  16
 #define I2S_LRCLK 17
 #define I2S_DIN   21
 
-// BMI088 I2C stuffs
+
+/* ========== BMI088 ========== */
+
 #define BMI088_ACC_ADDRESS 0x18
 
-#define BUMP_THRESHOLD_G 1.2
-#define COOLDOWN_MS 2000         // 2 sek mellem bump-lyde
+#define AAC_PWR_CTRL  0x7D
+#define ACC_PWR_Conf  0x7C
+#define ACC_RANGE     0x41
+
+
+/* ========== BMI088 ========== */
+
+#define SAMPLE_INTERVAL_MS  10
+#define BUMP_THRESHOLD_G    0.5
+#define COOLDOWN_MS         2000 // 2 sek mellem bump-lyde
 
 unsigned long lastTriggerTime = 0;
+unsigned long lastSample = 0;
+
+float lastAx = 0;
+float lastAy = 0;
+float lastAz = 0;
+
 bool playing = false;
 
-// BMI088 læser
+
+/* ========== BMI088 læser ========== */
+
 int16_t readAccelAxis(uint8_t regL) {
   Wire.beginTransmission(BMI088_ACC_ADDRESS);
   Wire.write(regL);
   Wire.endTransmission(false);
   Wire.requestFrom(BMI088_ACC_ADDRESS, 2);
 
-  int16_t l = Wire.read();
-  int16_t h = Wire.read();
-  return (h << 8) | l;
+  if (Wire.available() < 2) return 0
+
+  uint8_t l = Wire.read();
+  uint8_t h = Wire.read();
+  return (int16_t) ((h << 8) | l);
 }
+
+
+/* ========== Definer playback ========== */
 
 void startPlayback() {
   in = new AudioFileSourcePROGMEM(sampleaac, sizeof(sampleaac));
@@ -42,6 +69,9 @@ void startPlayback() {
   aac->begin(in, out);
   playing = true;
 }
+
+
+/* ========== Definer stop player ========== */
 
 void stopPlayback() {
   aac->stop();
@@ -52,11 +82,39 @@ void stopPlayback() {
   playing = false;
 }
 
+
+/* ========== Setup ========== */
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   Wire.begin();
+
+  // -------- BMI088 init --------
+
+  // Tænd for den
+  Wire.beginTransmission(BMI088_ACC_ADDRESS);
+  Wire.write(ACC_PWR_CTRL);
+  Wire.write(0x04);
+  Wire.endTransmission();
+  delay(50)
+
+  // Tændt ting
+  Write.beginTransmission(BMI088_ACC_ADDRESS);
+  Wire.write(ACC_PWR_CONF);
+  Wire.write(0x00);
+  Wire.endTransmission();
+  delay(50);
+
+  // Giv range af +- 6g
+  Wire.beginTransmission(BMI088_ACC_ADDRESS);
+  Wire.write(ACC_RANGE);
+  Wire.write(0x01);   // +- 6g
+  Wire.endTransmission();
+  delay(50)
+
+  // -------- Audio init --------
 
   audioLogger = &Serial;
 
@@ -80,17 +138,22 @@ void loop() {
   float ay = ay_raw * 0.000183;
   float az = az_raw * 0.000183;
 
-  float totalG = sqrt(ax*ax + ay*ay + az*az);
+  float dx = ax - lastAx;
+  float dy = ay - lastAy;
+  float dz = az - lastAz;
 
-  // Fjern jordens tyngdekraft (≈1g)
-  float dynamicAccel = abs(totalG - 1.0);
+  float shake = sqrt(dx*dx + dy*dy + dz*dz);
+
+  float totalG = sqrt(ax*ax + ay*ay + az*az);
 
   // Start playback når bump registreres
   if (!playing &&
-      dynamicAccel > BUMP_THRESHOLD_G &&
+      totalG > BUMP_THRESHOLD_G &&
       (now - lastTriggerTime > COOLDOWN_MS)) {
 
-    Serial.println("BUMP detected - Starting AAC playback");
+    Serial.print("Shake: ");
+    Serial.println(shake);
+
     startPlayback();
     lastTriggerTime = now;
   }
@@ -104,4 +167,6 @@ void loop() {
       stopPlayback();
     }
   }
+
+  delay(10);
 }
