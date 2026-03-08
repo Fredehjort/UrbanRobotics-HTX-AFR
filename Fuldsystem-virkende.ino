@@ -15,7 +15,7 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 int buttonPin = 6;
 volatile bool state = true;
 
-#define BMI088_ACC_ADDRESS 0x18
+#define BMI088_ACC_ADDRESS 0x19
 #define ACC_PWR_CTRL   0x7D
 #define ACC_PWR_CONF   0x7C
 #define ACC_RANGE      0x41
@@ -154,7 +154,7 @@ void stopPlayback() {
 }
 
 void showNormalFace() {
-  lcd.clear();
+  lcd.setCursor(0, 0);
   if (faceCycle % 2 == 0) {
     lcd.write(HALFCLOSEDEYE);
     lcd.write(MOUTH);
@@ -163,23 +163,12 @@ void showNormalFace() {
     lcd.write(OPENEYE);
     lcd.write(MOUTH);
     lcd.write(OPENEYE);
-  }
-  delay(300);
-  lcd.clear();
-  if (faceCycle % 2 == 0) {
-    lcd.write(CLOSEDEYE);
-    lcd.write(MOUTH);
-    lcd.write(CLOSEDEYE);
-  } else {
-    lcd.write(HALFCLOSEDEYE);
-    lcd.write(MOUTH);
-    lcd.write(HALFCLOSEDEYE);
   }
   faceCycle++;
 }
 
 void showSquintFace() {
-  lcd.clear();
+  lcd.setCursor(0, 0);
   lcd.write(LEFTSQUINT);
   lcd.write(MOUTHSQUINT);
   lcd.write(RIGHTSQUINT);
@@ -204,7 +193,7 @@ void setup() {
   showNormalFace();
 
   pinMode(buttonPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(3), statechange, FALLING);
+  attachInterrupt(digitalPinToInterrupt(buttonPin), statechange, FALLING);
 
   Wire.begin();
 
@@ -227,7 +216,7 @@ void setup() {
   delay(50);
 
   audioLogger = &Serial;
-  out = new AudioOutputI2S(0, 1);
+  out = new AudioOutputI2S(0, AudioOutputI2S::EXTERNAL_I2S);
   out->SetPinout(I2S_BCLK, I2S_LRCLK, I2S_DIN);
   out->SetGain(0.3f);
 
